@@ -5,6 +5,7 @@ if os.time() >= 1756319996 then
     --  while true do end 
 end
 
+
 function CheckKick(v)
     if v.Name == 'ErrorPrompt' then
         task.wait(2)
@@ -1181,7 +1182,7 @@ function mmb()
     SeaIndexes = {"Main", "Dressrosa", "Zou"}
 
     TasksOrder = {"SpecialBossesTask", "RaidController", "Trevor", "UtillyItemsActivitation", "ColosseumPuzzle",
-                  "Wenlocktoad", "ThirdSeaPuzzle", "PirateRaid", "SecondSeaPuzzle", "ThirdSeaPuzzle", "CollectDrops","CollectBerries",
+                  "Wenlocktoad", "ThirdSeaPuzzle", "PirateRaid", "SecondSeaPuzzle", "ThirdSeaPuzzle", "CollectDrops",
                   "BossesTask", "ExpRedeem", "LevelFarm"}
 
     MaxLevel = 2800
@@ -3643,40 +3644,6 @@ function mmb()
             if not Found then
                 TweenController.Create(CurrentIsland.Position + Vector3.new(0, 100, 0))
             end
-        end
-    end)
-
-    -- CollectDrops
-   FunctionsHandler.CollectBerries:RegisterMethod('Refresh', function()
-    local CollectionService= game:GetService("CollectionService")
-      local Players= game:GetService("Players")
-      local Player = Players.LocalPlayer
-      local BerryBush = CollectionService:GetTagged("BerryBush")      
-        for i = 1, #BerryBush do
-        local Bush = BerryBush[i]        
-            for AttributeName, BerryName in pairs(Bush:GetAttributes()) do
-                if not BerryArray or table.find(BerryArray, BerryName) then      
-                    if BerryName == "Red Cherry Berry" or BerryName == "Pink Pig Berry" or BerryName == "White Cloud Berry" then
-                        FunctionsHandler.CollectBerries:Set("CurrentProgressLevel", { Bush = Bush,Name = BerryName})
-                        return Bush,BerryName
-                    end
-                end
-            end
-        end
-    end)
-
-   FunctionsHandler.CollectBerries:RegisterMethod('Start', function()
-        local Bush = FunctionsHandler.CollectBerries:Get("CurrentProgressLevel")
-        FunctionsHandler.CollectBerries:Set("CurrentProgressLevel", nil)
-        if Bush.Bush then
-            TweenController.Create(CFrame.new(Bush.Bush.Parent:GetPivot().Position + Vector3.new(0, math.random(-1, 2), 0)))       
-                for AttributeName, BerryName in pairs(Bush.Bush:GetChildren()) do
-                    if not BerryArray or table.find(BerryArray, BerryName) then  
-                        SetTask("MainTask", "Auto Collect Berry - " .. tostring(Bush.Name))  
-                        TweenController.Create(BerryName.WorldPivot + Vector3.new(0, math.random(-1, 2), 0))
-                        fireproximityprompt(BerryName.ProximityPrompt,math.huge)
-                    end
-                end
         end
     end)
 
