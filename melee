@@ -1,17 +1,11 @@
 repeat
     task.wait(0.5)
 until game:IsLoaded()
-task.spawn(function()
-    while true do
-        setfpscap(7)
-        task.wait(10)
-    end
-end)
+
 if os.time() >= 1756319996 then
     --  while true do end 
 end
-print = function()
-end
+
 
 function CheckKick(v)
     if v.Name == 'ErrorPrompt' then
