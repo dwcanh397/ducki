@@ -2251,7 +2251,7 @@ function mmb()
                             end
                         end
                         FunctionsHandler.LocalPlayerController.Methods.EquipTool:Call(
-                            ScriptStorage.ForceToUseSword and "Sword" or "Melee")
+                            ScriptStorage.ForceToUseSword and "Melee")
 
                         AttackController:Attack(MonResult)
                         if os.time() ~= Debounce then
@@ -3180,8 +3180,8 @@ function mmb()
                 end
 
                 if Item.Mastery < MasteryRequirement then
-                    FarmingItem = {Item.Name, Item.Mastery, MasteryRequirement}
                     if Item.Name == "Yama" or Item.Name == "Tushita" then
+                        FarmingItem = {Item.Name, Item.Mastery, MasteryRequirement}
                         break
                     end
                 end
@@ -3646,6 +3646,8 @@ function mmb()
             end
         end
     end)
+
+
 
 
 
