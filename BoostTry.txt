@@ -1,0 +1,393 @@
+-- BOOST.lua - FPS / render optimizer for CDK farm scripts
+-- Load with: task.spawn(function() loadstring(game:HttpGet(URL, true))() end)
+-- Do NOT wrap in pcall() - this script uses task.wait() and will error inside pcall.
+
+local _g = getgenv and getgenv() or _G
+_g.connected = true
+
+local CFG = {
+    disable3D = true,
+    fpsCap = (_g.modechange and _g.modechange.FPS) or 20,
+    soundOff = true,
+    disableCoreGui = true,
+    lowQuality = true,
+    postFXOff = true,
+    zeroWater = true,
+    hide = {
+        geometry = true,
+        castShadowOff = true,
+        reflectance0 = true,
+        materialPlastic = false,
+        includeCharacter = false,
+    },
+    kill = {
+        particles = true,
+        lights = true,
+        decals = true,
+        ui3d = true,
+        prompts = false,
+        highlights = true,
+        clothes = true,
+        accessories = true,
+    },
+    batchSize = 2000,
+    hookNewSpawn = true,
+    antiAFK = true,
+}
+
+local S = setmetatable({}, {
+    __index = function(t, k)
+        local s = game:GetService(k)
+        rawset(t, k, s)
+        return s
+    end,
+})
+local RunService = S.RunService
+local Workspace = S.Workspace
+local Lighting = S.Lighting
+local Players = S.Players
+local StarterGui = S.StarterGui
+local UIS = S.UserInputService
+
+local LP = Players.LocalPlayer
+
+local function safe(_, f)
+    pcall(f)
+end
+
+local function setNoRender(on)
+    if RunService and RunService.Set3dRenderingEnabled then
+        safe(nil, function()
+            RunService:Set3dRenderingEnabled(on == false and false or true)
+        end)
+    end
+end
+
+local function setFPSCap(n)
+    if typeof(n) == 'number' and _G.__fpscap ~= n then
+        if typeof(setfpscap) == 'function' then
+            safe(nil, function()
+                setfpscap(n)
+                _G.__fpscap = n
+            end)
+        end
+    end
+end
+
+local function setCoreGuiEnabled(on)
+    safe(nil, function()
+        for _, t in ipairs(Enum.CoreGuiType:GetEnumItems()) do
+            StarterGui:SetCoreGuiEnabled(t, on)
+        end
+    end)
+end
+
+local function setLowQuality()
+    safe(nil, function()
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    end)
+end
+
+local function killPostFX()
+    for _, e in ipairs(Lighting:GetChildren()) do
+        if e:IsA('BlurEffect') or e:IsA('SunRaysEffect') or e:IsA('ColorCorrectionEffect')
+            or e:IsA('BloomEffect') or e:IsA('DepthOfFieldEffect') then
+            e.Enabled = false
+        end
+    end
+end
+
+local function waterZero()
+    local t = Workspace.Terrain
+    t.WaterWaveSize = 0
+    t.WaterWaveSpeed = 0
+    t.WaterReflectance = 0
+    t.WaterTransparency = 1
+end
+
+local function antiAFK()
+    if not CFG.antiAFK then
+        return
+    end
+    safe(nil, function()
+        local vu = S.VirtualUser
+        LP.Idled:Connect(function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new(0, 0))
+        end)
+    end)
+end
+
+do
+    if CFG.soundOff then
+        safe(nil, function()
+            UserSettings():GetService('UserGameSettings').MasterVolume = 0
+        end)
+    end
+    if CFG.disableCoreGui then
+        setCoreGuiEnabled(false)
+    end
+    if CFG.lowQuality then
+        setLowQuality()
+    end
+    if CFG.postFXOff then
+        killPostFX()
+    end
+    if CFG.zeroWater then
+        waterZero()
+    end
+    if CFG.disable3D then
+        setNoRender(false)
+    end
+    if CFG.fpsCap then
+        setFPSCap(CFG.fpsCap)
+    end
+    antiAFK()
+end
+
+local ZERO_RANGE = NumberRange.new(0, 0)
+local EMPTY_ASSET = 'rbxassetid://0'
+
+local function shouldSkipChar(inst)
+    if not LP or not LP.Character then
+        return false
+    end
+    return (not CFG.hide.includeCharacter) and inst:IsDescendantOf(LP.Character)
+end
+
+local function hideGeometry(inst)
+    if not CFG.hide.geometry then
+        return
+    end
+    if inst:IsA('BasePart') then
+        if CFG.hide.includeCharacter or not shouldSkipChar(inst) then
+            if inst.Transparency ~= 1 then
+                inst.Transparency = 1
+            end
+            if CFG.hide.castShadowOff and inst.CastShadow ~= false then
+                inst.CastShadow = false
+            end
+            if CFG.hide.reflectance0 and inst.Reflectance ~= 0 then
+                inst.Reflectance = 0
+            end
+            if CFG.hide.materialPlastic and inst.Material ~= Enum.Material.Plastic then
+                inst.Material = Enum.Material.Plastic
+            end
+        end
+    end
+end
+
+local function cull(inst)
+    if not inst or inst.Parent == nil then
+        return
+    end
+
+    hideGeometry(inst)
+    if shouldSkipChar(inst) then
+        return
+    end
+
+    if CFG.kill.particles and (
+        inst:IsA('ParticleEmitter') or inst:IsA('Trail') or inst:IsA('Beam')
+        or inst:IsA('Fire') or inst:IsA('Smoke') or inst:IsA('Sparkles')
+    ) then
+        if inst:IsA('ParticleEmitter') then
+            inst.Enabled = false
+            inst.Rate = 0
+            inst.Lifetime = ZERO_RANGE
+        elseif inst.Enabled ~= nil then
+            inst.Enabled = false
+        end
+        return
+    end
+
+    if CFG.kill.lights and (inst:IsA('PointLight') or inst:IsA('SpotLight') or inst:IsA('SurfaceLight')) then
+        inst.Enabled = false
+        return
+    end
+
+    if CFG.kill.decals then
+        if inst:IsA('Decal') or inst:IsA('Texture') then
+            inst:Destroy()
+            return
+        end
+        if inst:IsA('SurfaceAppearance') then
+            safe(nil, function() inst.ColorMap = EMPTY_ASSET end)
+            safe(nil, function() inst.MetalnessMap = EMPTY_ASSET end)
+            safe(nil, function() inst.RoughnessMap = EMPTY_ASSET end)
+            safe(nil, function() inst.NormalMap = EMPTY_ASSET end)
+            return
+        end
+    end
+
+    if CFG.kill.ui3d and (inst:IsA('BillboardGui') or inst:IsA('SurfaceGui')) then
+        if inst.Enabled ~= nil then
+            inst.Enabled = false
+        else
+            safe(nil, function() inst:Destroy() end)
+        end
+        return
+    end
+
+    if CFG.kill.prompts and inst:IsA('ProximityPrompt') then
+        if inst.Enabled ~= nil then
+            inst.Enabled = false
+        else
+            safe(nil, function() inst:Destroy() end)
+        end
+        return
+    end
+
+    if CFG.kill.highlights and inst:IsA('Highlight') then
+        safe(nil, function() inst:Destroy() end)
+        return
+    end
+
+    if inst:IsA('Explosion') then
+        inst.BlastPressure = 1
+        inst.BlastRadius = 1
+        return
+    end
+end
+
+local processed = setmetatable({}, { __mode = 'k' })
+local queue = {}
+
+local function push(x)
+    if x and not processed[x] then
+        queue[#queue + 1] = x
+        processed[x] = true
+    end
+end
+
+local function pop()
+    local n = #queue
+    if n == 0 then
+        return nil
+    end
+    local v = queue[n]
+    queue[n] = nil
+    return v
+end
+
+local function enqueueDescendants(root)
+    for _, v in ipairs(root:GetDescendants()) do
+        push(v)
+    end
+end
+
+enqueueDescendants(Workspace)
+enqueueDescendants(Lighting)
+
+if CFG.hookNewSpawn then
+    Workspace.DescendantAdded:Connect(push)
+    Lighting.DescendantAdded:Connect(push)
+end
+
+RunService.Heartbeat:Connect(function()
+    local n = 0
+    while n < CFG.batchSize do
+        local obj = pop()
+        if not obj then
+            break
+        end
+        if obj.Parent ~= nil then
+            cull(obj)
+        end
+        n = n + 1
+    end
+end)
+
+local function simplifyCharacter(char)
+    if not char then
+        return
+    end
+
+    if CFG.kill.accessories then
+        for _, ch in ipairs(char:GetChildren()) do
+            if ch:IsA('Accessory') then
+                safe(nil, function() ch:Destroy() end)
+            end
+        end
+    end
+
+    if CFG.kill.clothes then
+        for _, ch in ipairs(char:GetChildren()) do
+            if ch:IsA('Shirt') or ch:IsA('Pants') or ch:IsA('ShirtGraphic') then
+                safe(nil, function() ch:Destroy() end)
+            end
+        end
+    end
+
+    local animate = char:FindFirstChild('Animate')
+    if animate and animate:IsA('LocalScript') then
+        safe(nil, function() animate.Disabled = true end)
+    end
+
+    if CFG.hide.includeCharacter and CFG.hide.geometry then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA('BasePart') then
+                if part.Transparency ~= 1 then
+                    part.Transparency = 1
+                end
+                if CFG.hide.castShadowOff and part.CastShadow ~= false then
+                    part.CastShadow = false
+                end
+                if CFG.hide.reflectance0 and part.Reflectance ~= 0 then
+                    part.Reflectance = 0
+                end
+                if CFG.hide.materialPlastic and part.Material ~= Enum.Material.Plastic then
+                    part.Material = Enum.Material.Plastic
+                end
+            end
+        end
+    end
+
+    if CFG.kill.ui3d then
+        for _, ch in ipairs(char:GetDescendants()) do
+            if ch:IsA('BillboardGui') or ch:IsA('SurfaceGui') then
+                if ch.Enabled ~= nil then
+                    ch.Enabled = false
+                else
+                    safe(nil, function() ch:Destroy() end)
+                end
+            end
+        end
+    end
+end
+
+if LP then
+    if LP.Character then
+        simplifyCharacter(LP.Character)
+    end
+    LP.CharacterAdded:Connect(function(c)
+        task.spawn(function()
+            local hrp = c:WaitForChild('HumanoidRootPart', 10)
+            if hrp then
+                simplifyCharacter(c)
+            end
+        end)
+    end)
+end
+
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then
+        return
+    end
+    if input.KeyCode == Enum.KeyCode.F10 then
+        if RunService and RunService.Is3dRenderingEnabled and RunService.Set3dRenderingEnabled then
+            local on = RunService:Is3dRenderingEnabled()
+            setNoRender(on)
+            if on then
+                if CFG.fpsCap then
+                    setFPSCap(CFG.fpsCap)
+                end
+            else
+                setFPSCap(60)
+            end
+            print('[BOOST] Render toggled:', RunService:Is3dRenderingEnabled() and 'ON' or 'OFF')
+        end
+    end
+end)
+
+print('[BOOST] connected=true fpsCap=', CFG.fpsCap, ' no-render=', CFG.disable3D)
